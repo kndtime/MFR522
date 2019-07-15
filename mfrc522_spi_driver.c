@@ -77,7 +77,8 @@ unsigned char mfrc522_read_raw_rc(unsigned char addr)
 	      ucAddr = ((addr<<1)&0x7E)|0x80;
 
 	      ret = spi_write_then_read(mfrc522_spi, &ucAddr, 1, &ucResult, 1);
-	      if(ret != 0) {
+	      if(ret != 0)
+        {
 		            printk("spi_write_then_read err = %d\n", ret);
 	      }
 	      WAIT_FOR;
@@ -128,52 +129,50 @@ char mfrc522_communicate(unsigned char Command, unsigned char *pInData,
         	mfrc522_bit_mask(FIFOLevelReg,0x80);
 
         	for (i=0; i<InLenByte; i++)
-        	{   mfrc522_write_raw_rc(FIFODataReg, pInData[i]);    }
+        	         mfrc522_write_raw_rc(FIFODataReg, pInData[i]);
         	mfrc522_write_raw_rc(CommandReg, Command);
 
 
         	if (Command == PCD_TRANSCEIVE)
-        	{    mfrc522_bit_mask(BitFramingReg,0x80);  }
+        	         mfrc522_bit_mask(BitFramingReg,0x80);
 
 
         	i = 2000;
         	do
         	{
-        		n = mfrc522_read_raw_rc(ComIrqReg);
-        		i--;
+        		      n = mfrc522_read_raw_rc(ComIrqReg);
+        		      i--;
         	}
         	while ((i!=0) && !(n&0x01) && !(n&waitFor));
-        	mfrc522_clear_bit_mask(BitFramingReg,0x80);
+        	       mfrc522_clear_bit_mask(BitFramingReg,0x80);
 
         	if (i!=0)
         	{
-        		if(!(mfrc522_read_raw_rc(ErrorReg)&0x1B))
-        		{
-        			status = MI_OK;
-        			if (n & irqEn & 0x01)
-        			{   status = MI_NOTAGERR;   }
-        			if (Command == PCD_TRANSCEIVE)
-        			{
-        				n = mfrc522_read_raw_rc(FIFOLevelReg);
-        				lastBits = mfrc522_read_raw_rc(ControlReg) & 0x07;
-        				if (lastBits)
-        				{   *pOutLenBit = (n-1)*8 + lastBits;   }
-        				else
-        				{   *pOutLenBit = n*8;   }
-        				if (n == 0)
-        				{   n = 1;    }
-        				if (n > MAXRLEN)
-        				{   n = MAXRLEN;   }
-        				for (i=0; i<n; i++)
-        				{   pOutData[i] = mfrc522_read_raw_rc(FIFODataReg);    }
-        			}
-        		}
-        		else
-        		{   status = MI_ERR;   }
+              		if(!(mfrc522_read_raw_rc(ErrorReg)&0x1B))
+              		{
+              			       status = MI_OK;
+              			       if (n & irqEn & 0x01)
+              			             status = MI_NOTAGERR;
+              			       if (Command == PCD_TRANSCEIVE)
+                      		 {
+                      			     n = mfrc522_read_raw_rc(FIFOLevelReg);
+                      			    lastBits = mfrc522_read_raw_rc(ControlReg) & 0x07;
+                      			    if (lastBits)
+                      			           *pOutLenBit = (n - 1) * 8 + lastBits;
+                      				  else
+                      				         *pOutLenBit = n * 8;
+                      				  if (n == 0)
+                      				         n = 1;
+                      				  if (n > MAXRLEN)
+                      				         n = MAXRLEN;
+                      				for (i=0; i<n; i++)
+                      				        pOutData[i] = mfrc522_read_raw_rc(FIFODataReg);
+                      		}
+              		}
+              		else
+              		        status = MI_ERR;
 
         	}
-
-
         	mfrc522_bit_mask(ControlReg,0x80);           // stop timer now
         	mfrc522_write_raw_rc(CommandReg,PCD_IDLE);
         	return status;
@@ -189,19 +188,17 @@ char mfrc522_auth_state(unsigned char auth_mode,unsigned char addr,
       	ucComMF522Buf[0] = auth_mode;
       	ucComMF522Buf[1] = addr;
       	for (i=0; i<6; i++)
-      	{    ucComMF522Buf[i+2] = *(pKey+i);   }
+      	         ucComMF522Buf[i+2] = *( pKey + i );
       	for (i=0; i<6; i++)
-      	{    ucComMF522Buf[i+8] = *(pSnr+i);   }
+      	         ucComMF522Buf[i+8] = *( pSnr + i );
 
-      	status = mfrc522_communicate(PCD_AUTHENT,ucComMF522Buf,12,ucComMF522Buf,
-                                     &unLen);
+      	status = mfrc522_communicate(PCD_AUTHENT, ucComMF522Buf, 12, ucComMF522Buf, &unLen);
       	if ((status != MI_OK) || (!(mfrc522_read_raw_rc(Status2Reg) & 0x08)))
-      	{   status = MI_ERR;   }
-
+      	         status = MI_ERR;
       	return status;
 }
 
-void mfrc522_calulate_CRC(unsigned char *pIndata,unsigned char len,
+void mfrc522_calulate_CRC(unsigned char *pIndata, unsigned char len,
                           unsigned char *pOutData)
 {
       	unsigned char i,n;
@@ -209,13 +206,13 @@ void mfrc522_calulate_CRC(unsigned char *pIndata,unsigned char len,
       	mfrc522_write_raw_rc(CommandReg,PCD_IDLE);
       	mfrc522_bit_mask(FIFOLevelReg,0x80);
       	for (i=0; i<len; i++)
-      	{   mfrc522_write_raw_rc(FIFODataReg, *(pIndata+i));   }
+      	       mfrc522_write_raw_rc(FIFODataReg, *(pIndata+i));
       	mfrc522_write_raw_rc(CommandReg, PCD_CALCCRC);
       	i = 0xFF;
       	do
       	{
-      		n = mfrc522_read_raw_rc(DivIrqReg);
-      		i--;
+            		n = mfrc522_read_raw_rc(DivIrqReg);
+            		i--;
       	}
       	while ((i!=0) && !(n&0x04));
       	pOutData[0] = mfrc522_read_raw_rc(CRCResultRegL);
@@ -226,17 +223,17 @@ char mfrc522_read_addr(unsigned char addr,unsigned char *pData)
 {
       	char status;
       	unsigned int unLen;
-      	unsigned char i,ucComMF522Buf[MAXRLEN];
+      	unsigned char i, ucComMF522Buf[MAXRLEN];
 
       	ucComMF522Buf[0] = PICC_READ;
       	ucComMF522Buf[1] = addr;
-      	mfrc522_calulate_CRC(ucComMF522Buf,2,&ucComMF522Buf[2]);
+      	mfrc522_calulate_CRC(ucComMF522Buf, 2, &ucComMF522Buf[2]);
 
-      	status = mfrc522_communicate(PCD_TRANSCEIVE,ucComMF522Buf,4,ucComMF522Buf,&unLen);
+      	status = mfrc522_communicate(PCD_TRANSCEIVE, ucComMF522Buf, 4, ucComMF522Buf, &unLen);
       	if ((status == MI_OK) && (unLen == 0x90))
       	{
-      		for (i=0; i<16; i++)
-      		        *(pData+i) = ucComMF522Buf[i];
+            		for (i=0; i<16; i++)
+            		        *(pData+i) = ucComMF522Buf[i];
       	}
       	else
                 status = MI_ERR;
@@ -252,9 +249,9 @@ char mfrc522_halt(void)
 
       	ucComMF522Buf[0] = PICC_HALT;
       	ucComMF522Buf[1] = 0;
-      	mfrc522_calulate_CRC(ucComMF522Buf,2,&ucComMF522Buf[2]);
+      	mfrc522_calulate_CRC(ucComMF522Buf, 2, &ucComMF522Buf[2]);
 
-      	status = mfrc522_communicate(PCD_TRANSCEIVE,ucComMF522Buf,4,ucComMF522Buf,&unLen);
+      	status = mfrc522_communicate(PCD_TRANSCEIVE, ucComMF522Buf, 4, ucComMF522Buf, &unLen);
 
       	return MI_OK;
 }
@@ -264,7 +261,7 @@ void mfrc522_antenna_on(void)
         unsigned char i;
         i = mfrc522_read_raw_rc(TxControlReg); // Check if Antenna is ON
         if (!(i & 0x03)) {
-          mfrc522_bit_mask(TxControlReg, 0x03); // Set REG to ON
+                mfrc522_bit_mask(TxControlReg, 0x03); // Set REG to ON
         }
 }
 
@@ -383,7 +380,7 @@ static ssize_t mfrc522_read(struct file *file, char *buf, size_t count,
         {
               printk(KERN_DEBUG
                      "mfrc522: error while copying card number to userspace\n");
-                    return 0;
+              return 0;
         }
         return sizeof(read_data_buff);
 }
@@ -448,11 +445,11 @@ static long mfrc522_ioctl(struct file *file, unsigned int state, unsigned long a
 
 static struct spi_driver mfrc522_driver =
 {
-	.probe = mfrc522_probe,
-	.remove = mfrc522_remove,
-	.driver = {
-		.name = "mfrc522_rfid",
-	},
+      	.probe = mfrc522_probe,
+      	.remove = mfrc522_remove,
+      	.driver = {
+            		.name = "mfrc522_rfid",
+      	},
 };
 
 static struct file_operations mfrc522_fops =
@@ -488,7 +485,7 @@ static int __init mfrc522_init(void)
         if (res < 0) {
               printk(KERN_DEBUG "mfrc522: device spi register failed with %s\n",
                  __FUNCTION__);
-          return res;
+              return res;
         }
         return 0;
 }
