@@ -15,6 +15,7 @@
 #include <linux/kernel.h>    /* printk() */
 #include <linux/list.h>      /* list_*() */
 #include <linux/module.h>
+#include <linux/miscdevice.h>
 #include <linux/mutex.h>
 #include <linux/property.h>
 #include <linux/slab.h> /* kmalloc()/kfree() */
@@ -79,7 +80,15 @@ static long mfrc522_ioctl(struct file *file, unsigned int cmd, unsigned long arg
         }
         return 0;
 }
-// DONE
+
+static struct spi_driver mfrc522_driver = {
+	.probe = mfrc522_probe,
+	.remove = mfrc522_remove,
+	.driver = {
+		.name = "mfrc522_rfid",
+	},
+};
+
 static struct file_operations mfrc522_fops =
 {
         .owner = THIS_MODULE,
@@ -90,10 +99,9 @@ static struct file_operations mfrc522_fops =
         .unlocked_ioctl = mfrc522_ioctl,
 };
 
-// DONE
 static struct miscdevice mfrc522_misc_device = {
         .minor = MISC_DYNAMIC_MINOR,
-        .name = "rfid_mfrc522_dev",
+        .name = "mfrc522_rfid_dev",
         .fops = &mfrc522_fops,
 };
 
