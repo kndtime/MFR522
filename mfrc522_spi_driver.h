@@ -103,6 +103,9 @@ uint8_t mfrc522_write_raw_rc(uint8_t addr, uint8_t value);
 unsigned char mfrc522_read_raw_rc(unsigned char addr);
 void mfrc522_bit_mask(unsigned char reg,unsigned char mask);
 void mfrc522_clear_bit_mask(unsigned char reg,unsigned char mask);
+void mfrc_522_antenna_on(void);
+void mfrc_522_antenna_off(void);
+void mfrc_522_antenna_reset(void);
 char mfrc522_communicate(unsigned char Command, unsigned char *pInData,
 		             unsigned char InLenByte, unsigned char *pOutData,
 		             unsigned int *pOutLenBit);

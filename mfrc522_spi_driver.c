@@ -23,8 +23,8 @@
 #include <linux/ioctl.h>
 #include "mfrc522_spi_driver.h"
 
-#define WR_VALUE _IOW('a','a',int32_t*)
-#define RD_VALUE _IOR('a','b',int32_t*)
+#define READ_CARD     1
+#define GET_ID 	      2
 
 int32_t value = 0;
 
@@ -222,75 +222,165 @@ void mfrc522_calulate_CRC(unsigned char *pIndata,unsigned char len,
 
 char mfrc522_read_addr(unsigned char addr,unsigned char *pData)
 {
-	char status;
-	unsigned int unLen;
-	unsigned char i,ucComMF522Buf[MAXRLEN];
+      	char status;
+      	unsigned int unLen;
+      	unsigned char i,ucComMF522Buf[MAXRLEN];
 
-	ucComMF522Buf[0] = PICC_READ;
-	ucComMF522Buf[1] = addr;
-	mfrc522_calulate_CRC(ucComMF522Buf,2,&ucComMF522Buf[2]);
+      	ucComMF522Buf[0] = PICC_READ;
+      	ucComMF522Buf[1] = addr;
+      	mfrc522_calulate_CRC(ucComMF522Buf,2,&ucComMF522Buf[2]);
 
-	status = mfrc522_communicate(PCD_TRANSCEIVE,ucComMF522Buf,4,ucComMF522Buf,&unLen);
-	if ((status == MI_OK) && (unLen == 0x90))
-	{
-		for (i=0; i<16; i++)
-		{    *(pData+i) = ucComMF522Buf[i];   }
-	}
-	else
-	{   status = MI_ERR;   }
+      	status = mfrc522_communicate(PCD_TRANSCEIVE,ucComMF522Buf,4,ucComMF522Buf,&unLen);
+      	if ((status == MI_OK) && (unLen == 0x90))
+      	{
+      		for (i=0; i<16; i++)
+      		        *(pData+i) = ucComMF522Buf[i];
+      	}
+      	else
+                status = MI_ERR;
 
-	return status;
+      	return status;
 }
 
-static char mfrc522_state(unchar opnd)
+char mfrc522__halt(void)
+{
+      	char status;
+      	unsigned int unLen;
+      	unsigned char ucComMF522Buf[MAXRLEN];
+
+      	ucComMF522Buf[0] = PICC_HALT;
+      	ucComMF522Buf[1] = 0;
+      	mfrc522_calulate_CRC(ucComMF522Buf,2,&ucComMF522Buf[2]);
+
+      	status = mfrc522_communicate(PCD_TRANSCEIVE,ucComMF522Buf,4,ucComMF522Buf,&unLen);
+
+      	return MI_OK;
+}
+
+// DONE
+void mfrc522_antenna_on(void) {
+        unsigned char i;
+        i = mfrc522_read_raw_rc(TxControlReg); // Check if Antenna is ON
+        if (!(i & 0x03)) {
+          mfrc522_bit_mask(TxControlReg, 0x03); // Set REG to ON
+        }
+}
+
+// DONE
+void mfrc522_antenna_off(void) {
+        mfrc522_clear_bit_mask(TxControlReg, 0x03); // CLEAR REG
+}
+
+// DONE
+void mfrc522_antenna_reset(void) {
+        mfrc522_antenna_off();
+        mfrc522_antenna_on();
+}
+
+char mfrc522_iso_config() {
+        clear_bit_mask(Status2Reg, 0x08);
+        mfrc522_write_raw_rc(ModeReg, 0x3D);
+        mfrc522_write_raw_rc(RxSelReg, 0x86);
+        mfrc522_write_raw_rc(RFCfgReg, 0x7F);
+        mfrc522_write_raw_rc(TReloadRegL, 30);
+        mfrc522_write_raw_rc(TReloadRegH, 0);
+        mfrc522_write_raw_rc(TModeReg, 0x8D);
+        mfrc522_write_raw_rc(TPrescalerReg, 0x3E);
+        delay_ns(1000);
+        mfrc522_antenna_on();
+}
+
+char mfrc_522_reset(void) {
+        WAIT_FOR;
+        delay_ns(10);
+        WAIT_FOR;
+        delay_ns(10);
+        WAIT_FOR;
+        delay_ns(10);
+        mfrc522_write_raw_rc(CommandReg, PCD_RESETPHASE);
+        delay_ns(10);
+
+        mfrc522_write_raw_rc(ModeReg, 0x3D);
+        mfrc522_write_raw_rc(TReloadRegL, 30);
+        mfrc522_write_raw_rc(TReloadRegH, 0);
+        mfrc522_write_raw_rc(TModeReg, 0x8D);
+        mfrc522_write_raw_rc(TPrescalerReg, 0x3E);
+        mfrc522_write_raw_rc(TxAutoReg, 0x40);
+
+        return STATUS_OK;
+}
+
+int mfrc522_init(void) {
+        unsigned char read_res;
+        // Reset
+        mfrc522_reset();
+        // Try a read
+        read_res = mfrc522_read_raw_rc();
+        if (read_res != 30) {
+          printk(KERN_DEBUG "mfrc522: no device detected read error %d\n", a);
+          return -ENODEV;
+        } else
+          printk(KERN_DEBUG "mfrc522: device detected\n");
+        // Put the antenna on and off to reset
+        mfrc522_antenna_reset();
+        // Write ISO14443_A headers
+        mfrc522_iso_config();
+        return 0;
+}
+
+static char mfrc522_state()
 {
         char *pdata = buffer;
         char status;
-        status=mfrc522_auth_state(PICC_AUTHENT1A,KuaiN,PassWd,MLastSelectedSnr);
-    		if(status!=MI_OK)
+        status = mfrc522_auth_state(PICC_AUTHENT1A, KuaiN, PassWd,
+                                    MLastSelectedSnr);
+    		if(status != MI_OK)
     		{
-    			printk(KERN_DEBUG"read authorize card err\n");
-    			return -EFAULT;
+                printk(KERN_DEBUG "mfrc522: error while reading card\n");
+    			      return -EFAULT;
     		}
-    		status=mfrc522_read_addr(KuaiN,Read_Data);
-    		if(status!=MI_OK)
+    		status = mfrc522_read_addr(KuaiN, Read_Data);
+    		if(status != MI_OK)
     		{
-    			printk(KERN_DEBUG"read card err\n");
-    			return -EFAULT;
-    		} else {
-    			int i;
-    			memcpy(pdata, Read_Data, sizeof(Read_Data));
-    			printk(KERN_DEBUG"read block %d info:", KuaiN);
-    			for(i = 0; i < 16; i++) {
-    				printk(KERN_DEBUG"%2.2X",pdata[i]);
-    			}
-    			printk(KERN_DEBUG"\n");
+    			     printk(KERN_DEBUG"read card err\n");
+    			     return -EFAULT;
+    		}
+        else
+        {
+    			     int i;
+    			     memcpy(pdata, Read_Data, sizeof(Read_Data));
+    			     printk(KERN_DEBUG"read block %d info:", KuaiN);
+    			     for(i = 0; i < 16; i++)
+    				          printk(KERN_DEBUG"%2.2X",pdata[i]);
+    			     printk(KERN_DEBUG"\n");
     		}
 }
 
 static ssize_t mfrc522_read(struct file *file, char *buf, size_t count,
                             loff_t *ppos)
 {
-        if(mfrc522_state('r'))
+        if(mfrc522_state())
                 return 0;
-        printk(KERN_DEBUG"card info:%2.2X\n",Read_Data[0]);
+        printk(KERN_DEBUG"mfrc522: card info:%2.2X\n", Read_Data[0]);
         if (copy_to_user(buf, read_data_buff, sizeof(read_data_buff)))
         {
-                printk(KERN_DEBUG"copy card number to userspace err\n");
+          printk(KERN_DEBUG
+                 "mfrc522: error while copying card number to userspace\n");
                 return 0;
         }
         return sizeof(read_data_buff);
 }
 
-
 static int mfrc522_open(struct inode *inode, struct file *file)
 {
-        return 0;
+        printk(KERN_DEBUG "mfrc522_open()\n");
+        return mfrc522_init();
 }
 
 static ssize_t mfrc522_write (struct file *filp, const char *buf, size_t count,
                             loff_t *f_pos)
 {
+        //TODO
         return 0;
 }
 
@@ -304,6 +394,7 @@ static int mfrc522_release(struct inode *inode, struct file *file)
 
 static int mfrc522_remove(struct spi_device *spi)
 {
+        printk(KERN_DEBUG "mfrc522: driver removed\n");
         return 0;
 }
 
@@ -315,21 +406,28 @@ static int mfrc522_probe(struct spi_device *spi)
         return 0;
 };
 
-static long mfrc522_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+static long mfrc522_ioctl(struct file *file, unsigned int state, unsigned long arg)
 {
-         switch(cmd) {
-                case WR_VALUE:
-                        _copy_from_user(&value ,(int32_t*) arg, sizeof(value));
-                        printk(KERN_INFO "Value = %d\n", value);
-                        break;
-                case RD_VALUE:
-                        _copy_to_user((int32_t*) arg, &value, sizeof(value));
-                        break;
+        switch (state) {
+                case READ_CARD:
+                break;
+                case GET_ID:
+                      if(!rc522_loop_work(GET_ID)){
+                        if (copy_to_user((char *)arg, MLastSelectedSnr,4)) {
+                          printk(KERN_DEBUG
+                                 "mfrc522: error while copying to userland %s,
+                                 [line %d].\n",
+                                 __FILE__, __LINE__);
+    return -EFAULT;
+  }
+}
+                break;
         }
         return 0;
 }
 
-static struct spi_driver mfrc522_driver = {
+static struct spi_driver mfrc522_driver =
+{
 	.probe = mfrc522_probe,
 	.remove = mfrc522_remove,
 	.driver = {
@@ -347,12 +445,12 @@ static struct file_operations mfrc522_fops =
         .unlocked_ioctl = mfrc522_ioctl,
 };
 
-static struct miscdevice mfrc522_misc_device = {
+static struct miscdevice mfrc522_misc_device =
+{
         .minor = MISC_DYNAMIC_MINOR,
         .name = "mfrc522_rfid_dev",
         .fops = &mfrc522_fops,
 };
-
 
 static int __init mfrc522_init(void)
 {
@@ -361,14 +459,14 @@ static int __init mfrc522_init(void)
         /* Register the character device */
         res = misc_register(&mfrc522_misc_device);
         if (res < 0) {
-          printk(KERN_DEBUG "mfrc522: device register failed with error %d.\n",
-                 res);
-          return res;
+              printk(KERN_DEBUG "mfrc522: device register failed with error %d.\n",
+                     res);
+              return res;
         }
         /* Register the SPI device */
         res = spi_register_driver(&mfrc522_driver);
         if (res < 0) {
-          printk(KERN_DEBUG "mfrc522: device spi register failed with %s\n",
+              printk(KERN_DEBUG "mfrc522: device spi register failed with %s\n",
                  __FUNCTION__);
           return res;
         }
