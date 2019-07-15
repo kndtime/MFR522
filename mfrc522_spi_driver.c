@@ -7,6 +7,7 @@
  */
 #include <linux/gpio/consumer.h>
 #include <linux/gpio/driver.h>
+#include <linux/uaccess.h>
 #include <asm/uaccess.h> /* copy_{from,to}_user() */
 #include <linux/fs.h>   /* file_operations */
 #include <linux/init.h> /* module_{init,exit}() */
@@ -23,6 +24,8 @@
 #define WR_VALUE _IOW('a','a',int32_t*)
 #define RD_VALUE _IOR('a','b',int32_t*)
 
+int32_t value = 0;
+
 struct spi_device *mfrc522_spi;
 
 static ssize_t mfrc522_read(struct file *file, char *buf, size_t count,
@@ -33,6 +36,12 @@ static ssize_t mfrc522_read(struct file *file, char *buf, size_t count,
 
 
 static int mfrc522_open(struct inode *inode, struct file *file)
+{
+        return 0;
+}
+
+static ssize_t mfrc522_write (struct file *filp, const char *buf, size_t count,
+                            loff_t *f_pos)
 {
         return 0;
 }
@@ -61,11 +70,11 @@ static long mfrc522_ioctl(struct file *file, unsigned int cmd, unsigned long arg
 {
          switch(cmd) {
                 case WR_VALUE:
-                        copy_from_user(&value ,(int32_t*) arg, sizeof(value));
+                        _copy_from_user(&value ,(int32_t*) arg, sizeof(value));
                         printk(KERN_INFO "Value = %d\n", value);
                         break;
                 case RD_VALUE:
-                        copy_to_user((int32_t*) arg, &value, sizeof(value));
+                        _copy_to_user((int32_t*) arg, &value, sizeof(value));
                         break;
         }
         return 0;
@@ -96,7 +105,8 @@ static int __init mfrc522_init(void)
         /* Register the character device */
         res = misc_register(&mfrc522_misc_device);
         if (res < 0) {
-          printk(KERN_DEBUG "mfrc522: device register failed with error %d.\n", res);
+          printk(KERN_DEBUG "mfrc522: device register failed with error %d.\n",
+                 res);
           return res;
         }
         /* Register the SPI device */
