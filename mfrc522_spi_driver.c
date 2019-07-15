@@ -34,6 +34,7 @@ static unchar PassWd[6]={0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 static unsigned char MLastSelectedSnr[4];
 static unsigned char buffer[16];
 
+static unsigned char RevBuffer[30];
 static unsigned char Read_Data[16]={0x00};
 static unsigned char read_data_buff[16];
 
@@ -368,6 +369,34 @@ char mfrc522_anticol(unsigned char *pSnr)
 	return status;
 }
 
+char mfrc522_select(unsigned char *pSnr)
+{
+  char status;
+  unsigned char i;
+  unsigned int len;
+  unsigned char buffer[MAXRLEN];
+
+  buffer[0] = PICC_ANTICOLL1;
+  buffer[1] = 0x70;
+  buffer[6] = 0;
+  for (i = 0; i < 4; i++) {
+          buffer[i + 2] = *(pSnr + i);
+          buffer[6] ^= *(pSnr + i);
+  }
+
+  mfrc522_calulate_CRC(buffer, 7, &buffer[7]);
+  mfrc522_clear_bit_mask(Status2Reg, 0x08);
+
+  status = mfrc522_communicate(PCD_TRANSCEIVE, buffer, 9, buffer, &len);
+
+  if ((status == MI_OK) && (len == 0x18))
+    status = MI_OK;
+  else
+    status = MI_ERR;
+
+  return status;
+}
+
 int mfrc522_initialization(void)
 {
         unsigned char read_res;
@@ -395,7 +424,7 @@ static char mfrc522_state(unchar a)
         char status;
         mfrc522_reset();
       	status = mfrc522_request(PICC_REQIDL, &RevBuffer[0]);
-      	if(status ! =MI_OK)
+      	if(status != MI_OK)
       	{
             		printk(KERN_DEBUG "mfrc522: no search card, no card found\n");
             		return -EFAULT;
@@ -408,7 +437,7 @@ static char mfrc522_state(unchar a)
       	}
       	memcpy(MLastSelectedSnr, &RevBuffer[2], 4);
 
-      	status=PcdSelect(MLastSelectedSnr);
+      	status = mfrc522_select(MLastSelectedSnr);
       	if(status!=MI_OK)
       	{
             		printk(KERN_DEBUG "mfrc522: no card selected\n");
