@@ -29,6 +29,7 @@
 int32_t value = 0;
 
 uint KuaiN;
+static unchar PassWd[6]={0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 static unsigned char MLastSelectedSnr[4];
 static unsigned char buffer[16];
 
@@ -242,6 +243,8 @@ char mfrc522_read_addr(unsigned char addr,unsigned char *pData)
 
 static char rc522_loop_work(unchar opnd)
 {
+        char *pdata = buffer;
+        char status;
         status=mfrc522_auth_state(PICC_AUTHENT1A,KuaiN,PassWd,MLastSelectedSnr);
     		if(status!=MI_OK)
     		{
