@@ -10,6 +10,7 @@
 #include <linux/uaccess.h>
 #include <asm/uaccess.h> /* copy_{from,to}_user() */
 #include <linux/fs.h>   /* file_operations */
+#include <linux/delay.h>
 #include <linux/init.h> /* module_{init,exit}() */
 #include <linux/interrupt.h> /* request_irq etc */
 #include <linux/kernel.h>    /* printk() */
@@ -64,6 +65,7 @@ uint8_t mfrc522_write_raw_rc(uint8_t addr, uint8_t value)
         spi_sync( mfrc522_spi, &msg );
 
         WAIT_FOR;
+        return 0;
 }
 
 unsigned char mfrc522_read_raw_rc(unsigned char addr)
@@ -258,7 +260,8 @@ char mfrc522__halt(void)
 }
 
 // DONE
-void mfrc522_antenna_on(void) {
+void mfrc522_antenna_on(void)
+{
         unsigned char i;
         i = mfrc522_read_raw_rc(TxControlReg); // Check if Antenna is ON
         if (!(i & 0x03)) {
@@ -267,18 +270,21 @@ void mfrc522_antenna_on(void) {
 }
 
 // DONE
-void mfrc522_antenna_off(void) {
+void mfrc522_antenna_off(void)
+{
         mfrc522_clear_bit_mask(TxControlReg, 0x03); // CLEAR REG
 }
 
 // DONE
-void mfrc522_antenna_reset(void) {
+void mfrc522_antenna_reset(void)
+{
         mfrc522_antenna_off();
         mfrc522_antenna_on();
 }
 
-char mfrc522_iso_config() {
-        clear_bit_mask(Status2Reg, 0x08);
+void mfrc522_iso_config(void)
+{
+        mfrc522_clear_bit_mask(Status2Reg, 0x08);
         mfrc522_write_raw_rc(ModeReg, 0x3D);
         mfrc522_write_raw_rc(RxSelReg, 0x86);
         mfrc522_write_raw_rc(RFCfgReg, 0x7F);
@@ -290,7 +296,8 @@ char mfrc522_iso_config() {
         mfrc522_antenna_on();
 }
 
-char mfrc_522_reset(void) {
+char mfrc522_reset(void)
+{
         WAIT_FOR;
         delay_ns(10);
         WAIT_FOR;
@@ -305,22 +312,25 @@ char mfrc_522_reset(void) {
         mfrc522_write_raw_rc(TReloadRegH, 0);
         mfrc522_write_raw_rc(TModeReg, 0x8D);
         mfrc522_write_raw_rc(TPrescalerReg, 0x3E);
-        mfrc522_write_raw_rc(TxAutoReg, 0x40);
+        mfrc522_write_raw_rc(TxASKReg, 0x40);
 
-        return STATUS_OK;
+        return MI_OK;
 }
 
-int mfrc522_init(void) {
+int mfrc522_initialization(void)
+{
         unsigned char read_res;
         // Reset
         mfrc522_reset();
         // Try a read
         read_res = mfrc522_read_raw_rc();
-        if (read_res != 30) {
-          printk(KERN_DEBUG "mfrc522: no device detected read error %d\n", a);
-          return -ENODEV;
-        } else
-          printk(KERN_DEBUG "mfrc522: device detected\n");
+        if (read_res != 30)
+        {
+                printk(KERN_DEBUG "mfrc522: no device detected read error %d\n", a);
+                return -ENODEV;
+        }
+        else
+                printk(KERN_DEBUG "mfrc522: device detected\n");
         // Put the antenna on and off to reset
         mfrc522_antenna_reset();
         // Write ISO14443_A headers
@@ -328,7 +338,7 @@ int mfrc522_init(void) {
         return 0;
 }
 
-static char mfrc522_state()
+static char mfrc522_state(unchar a)
 {
         char *pdata = buffer;
         char status;
@@ -374,7 +384,7 @@ static ssize_t mfrc522_read(struct file *file, char *buf, size_t count,
 static int mfrc522_open(struct inode *inode, struct file *file)
 {
         printk(KERN_DEBUG "mfrc522_open()\n");
-        return mfrc522_init();
+        return mfrc522_initialization();
 }
 
 static ssize_t mfrc522_write (struct file *filp, const char *buf, size_t count,
@@ -408,19 +418,22 @@ static int mfrc522_probe(struct spi_device *spi)
 
 static long mfrc522_ioctl(struct file *file, unsigned int state, unsigned long arg)
 {
-        switch (state) {
+        switch (state)
+        {
                 case READ_CARD:
+                      //NOPE
                 break;
                 case GET_ID:
-                      if(!rc522_loop_work(GET_ID)){
-                        if (copy_to_user((char *)arg, MLastSelectedSnr,4)) {
-                          printk(KERN_DEBUG
-                                 "mfrc522: error while copying to userland %s,
-                                 [line %d].\n",
-                                 __FILE__, __LINE__);
-    return -EFAULT;
-  }
-}
+                      if(!mfrc522_state(GET_ID))
+                      {
+                                if (copy_to_user((char *)arg, MLastSelectedSnr,4))
+                                {
+                                      printk(KERN_DEBUG
+                                      "mfrc522: error while copying to userland %s,[line %d].\n",
+                                      __FILE__, __LINE__);
+                                      return -EFAULT;
+                                }
+                      }
                 break;
         }
         return 0;
@@ -483,8 +496,6 @@ static void __exit mfrc522_exit(void)
 
 module_init(mfrc522_init);
 module_exit(mfrc522_exit);
-
-
 
 MODULE_AUTHOR("Axel Banal <axel.banal@epita.fr>");
 MODULE_AUTHOR("Antoine Lebeury <antoine.lebeury@epita.fr>");
