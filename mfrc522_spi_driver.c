@@ -244,7 +244,7 @@ char mfrc522_read_addr(unsigned char addr,unsigned char *pData)
       	return status;
 }
 
-char mfrc522__halt(void)
+char mfrc522_halt(void)
 {
       	char status;
       	unsigned int unLen;
@@ -343,7 +343,7 @@ static char mfrc522_state(unchar a)
                                     MLastSelectedSnr);
         if (a == GET_ID)
         {
-                mfrc_522_halt();
+                mfrc522_halt();
                 return 0;
         }
         else
