@@ -21,6 +21,7 @@
 #include <linux/slab.h> /* kmalloc()/kfree() */
 #include <linux/spi/spi.h>
 #include <linux/ioctl.h>
+#include "mfrc522_spi_driver.h"
 
 #define WR_VALUE _IOW('a','a',int32_t*)
 #define RD_VALUE _IOR('a','b',int32_t*)
@@ -71,7 +72,7 @@ unsigned char mfrc522_read_raw_rc(unsigned char addr)
 	      WAIT_FOR;
 	      ucAddr = ((addr<<1)&0x7E)|0x80;
 
-	      int ret = spi_write_then_read(rc522_spi, &ucAddr, 1, &ucResult, 1);
+	      int ret = spi_write_then_read(mfrc522_spi, &ucAddr, 1, &ucResult, 1);
 	      if(ret != 0) {
 		            printk("spi_write_then_read err = %d\n", ret);
 	      }
@@ -239,7 +240,7 @@ char mfrc522_read_addr(unsigned char addr,unsigned char *pData)
 	return status;
 }
 
-static char rc522_loop_work(uchar opnd)
+static char rc522_loop_work(unchar opnd)
 {
         status=mfrc522_auth_state(PICC_AUTHENT1A,KuaiN,PassWd,MLastSelectedSnr);
     		if(status!=MI_OK)
