@@ -45,12 +45,12 @@ struct spi_device *mfrc522_spi;
  */
 uint8_t mfrc522_write_raw_rc(uint8_t addr, uint8_t value)
 {
+        struct spi_transfer st[2];
+        struct spi_message  msg;
         unsigned char ucAddr;
         WAIT_FOR;
         ucAddr = ((addr<<1)&0x7E);
 
-        struct spi_transfer st[2];
-        struct spi_message  msg;
         spi_message_init( &msg );
         memset( st, 0, sizeof(st) );
 
@@ -70,10 +70,11 @@ unsigned char mfrc522_read_raw_rc(unsigned char addr)
 {
 	      unsigned char ucAddr;
 	      unsigned char ucResult=0;
+        int ret;
 	      WAIT_FOR;
 	      ucAddr = ((addr<<1)&0x7E)|0x80;
 
-	      int ret = spi_write_then_read(mfrc522_spi, &ucAddr, 1, &ucResult, 1);
+	      ret = spi_write_then_read(mfrc522_spi, &ucAddr, 1, &ucResult, 1);
 	      if(ret != 0) {
 		            printk("spi_write_then_read err = %d\n", ret);
 	      }
@@ -241,7 +242,7 @@ char mfrc522_read_addr(unsigned char addr,unsigned char *pData)
 	return status;
 }
 
-static char rc522_loop_work(unchar opnd)
+static char mfrc522_state(unchar opnd)
 {
         char *pdata = buffer;
         char status;
@@ -270,7 +271,9 @@ static char rc522_loop_work(unchar opnd)
 static ssize_t mfrc522_read(struct file *file, char *buf, size_t count,
                             loff_t *ppos)
 {
-        // TODO
+        if(mfrc522_state('r'))
+                return 0;
+        printk(KERN_DEBUG"card info:%2.2X\n",Read_Data[0]);
         if (copy_to_user(buf, read_data_buff, sizeof(read_data_buff)))
         {
                 printk(KERN_DEBUG"copy card number to userspace err\n");
