@@ -259,7 +259,6 @@ char mfrc522__halt(void)
       	return MI_OK;
 }
 
-// DONE
 void mfrc522_antenna_on(void)
 {
         unsigned char i;
@@ -269,13 +268,11 @@ void mfrc522_antenna_on(void)
         }
 }
 
-// DONE
 void mfrc522_antenna_off(void)
 {
         mfrc522_clear_bit_mask(TxControlReg, 0x03); // CLEAR REG
 }
 
-// DONE
 void mfrc522_antenna_reset(void)
 {
         mfrc522_antenna_off();
@@ -292,20 +289,20 @@ void mfrc522_iso_config(void)
         mfrc522_write_raw_rc(TReloadRegH, 0);
         mfrc522_write_raw_rc(TModeReg, 0x8D);
         mfrc522_write_raw_rc(TPrescalerReg, 0x3E);
-        delay_ns(1000);
+        ndelay(1000);
         mfrc522_antenna_on();
 }
 
 char mfrc522_reset(void)
 {
         WAIT_FOR;
-        delay_ns(10);
+        ndelay(10);
         WAIT_FOR;
-        delay_ns(10);
+        ndelay(10);
         WAIT_FOR;
-        delay_ns(10);
+        ndelay(10);
         mfrc522_write_raw_rc(CommandReg, PCD_RESETPHASE);
-        delay_ns(10);
+        ndelay(10);
 
         mfrc522_write_raw_rc(ModeReg, 0x3D);
         mfrc522_write_raw_rc(TReloadRegL, 30);
@@ -323,10 +320,10 @@ int mfrc522_initialization(void)
         // Reset
         mfrc522_reset();
         // Try a read
-        read_res = mfrc522_read_raw_rc();
+        read_res = mfrc522_read_raw_rc(TReloadRegL);
         if (read_res != 30)
         {
-                printk(KERN_DEBUG "mfrc522: no device detected read error %d\n", a);
+                printk(KERN_DEBUG "mfrc522: no device detected read error %d\n", read_res);
                 return -ENODEV;
         }
         else
@@ -344,39 +341,49 @@ static char mfrc522_state(unchar a)
         char status;
         status = mfrc522_auth_state(PICC_AUTHENT1A, KuaiN, PassWd,
                                     MLastSelectedSnr);
-    		if(status != MI_OK)
-    		{
-                printk(KERN_DEBUG "mfrc522: error while reading card\n");
-    			      return -EFAULT;
-    		}
-    		status = mfrc522_read_addr(KuaiN, Read_Data);
-    		if(status != MI_OK)
-    		{
-    			     printk(KERN_DEBUG"read card err\n");
-    			     return -EFAULT;
-    		}
+        if (a == GET_ID)
+        {
+                mfrc_522_halt();
+                return 0;
+        }
         else
         {
-    			     int i;
-    			     memcpy(pdata, Read_Data, sizeof(Read_Data));
-    			     printk(KERN_DEBUG"read block %d info:", KuaiN);
-    			     for(i = 0; i < 16; i++)
-    				          printk(KERN_DEBUG"%2.2X",pdata[i]);
-    			     printk(KERN_DEBUG"\n");
-    		}
+          		if(status != MI_OK)
+          		{
+                      printk(KERN_DEBUG "mfrc522: error while reading card\n");
+          			      return -EFAULT;
+          		}
+          		status = mfrc522_read_addr(KuaiN, Read_Data);
+          		if(status != MI_OK)
+          		{
+          			     printk(KERN_DEBUG"read card err\n");
+          			     return -EFAULT;
+          		}
+              else
+              {
+          			     int i;
+          			     memcpy(pdata, Read_Data, sizeof(Read_Data));
+          			     printk(KERN_DEBUG"read block %d info:", KuaiN);
+          			     for(i = 0; i < 16; i++)
+          				          printk(KERN_DEBUG"%2.2X",pdata[i]);
+          			     printk(KERN_DEBUG"\n");
+          		}
+      }
+      mfrc522_halt();
+      return MI_OK;
 }
 
 static ssize_t mfrc522_read(struct file *file, char *buf, size_t count,
                             loff_t *ppos)
 {
-        if(mfrc522_state())
+        if(mfrc522_state(READ_CARD))
                 return 0;
         printk(KERN_DEBUG"mfrc522: card info:%2.2X\n", Read_Data[0]);
         if (copy_to_user(buf, read_data_buff, sizeof(read_data_buff)))
         {
-          printk(KERN_DEBUG
-                 "mfrc522: error while copying card number to userspace\n");
-                return 0;
+              printk(KERN_DEBUG
+                     "mfrc522: error while copying card number to userspace\n");
+                    return 0;
         }
         return sizeof(read_data_buff);
 }
