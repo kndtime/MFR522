@@ -311,6 +311,63 @@ char mfrc522_reset(void)
         return MI_OK;
 }
 
+char mfrc522_request(unsigned char req_code,unsigned char *pTagType)
+{
+	char status;
+	unsigned int unLen;
+	unsigned char ucComMF522Buf[MAXRLEN];
+
+	mfrc522_clear_bit_mask(Status2Reg,0x08);
+	mfrc522_write_raw_rc(BitFramingReg,0x07);
+	mfrc522_bit_mask(TxControlReg,0x03);
+
+	ucComMF522Buf[0] = req_code;
+
+	status = mfrc522_communicate(PCD_TRANSCEIVE, ucComMF522Buf, 1, ucComMF522Buf, &unLen);
+
+	if ((status == MI_OK) && (unLen == 0x10))
+	{
+      		*pTagType     = ucComMF522Buf[0];
+      		*(pTagType+1) = ucComMF522Buf[1];
+	}
+	else
+      	 status = MI_ERR;
+
+	return status;
+}
+
+char mfrc522_anticol(unsigned char *pSnr)
+{
+	char status;
+	unsigned char i,snr_check=0;
+	unsigned int unLen;
+	unsigned char ucComMF522Buf[MAXRLEN];
+
+
+	mfrc522_clear_bit_mask(Status2Reg,0x08);
+	mfrc522_write_raw_rc(BitFramingReg,0x00);
+	mfrc522_clear_bit_mask(CollReg,0x80);
+
+	ucComMF522Buf[0] = PICC_ANTICOLL1;
+	ucComMF522Buf[1] = 0x20;
+
+	status = mfrc522_communicate(PCD_TRANSCEIVE, ucComMF522Buf, 2, ucComMF522Buf, &unLen);
+
+	if (status == MI_OK)
+	{
+      		for (i=0; i<4; i++)
+      		{
+            			*(pSnr+i)  = ucComMF522Buf[i];
+            			snr_check ^= ucComMF522Buf[i];
+      		}
+      		if (snr_check != ucComMF522Buf[i])
+            		  status = MI_ERR;
+	}
+
+	mfrc522_bit_mask(CollReg, 0x80);
+	return status;
+}
+
 int mfrc522_initialization(void)
 {
         unsigned char read_res;
@@ -336,8 +393,29 @@ static char mfrc522_state(unchar a)
 {
         char *pdata = buffer;
         char status;
-        status = mfrc522_auth_state(PICC_AUTHENT1A, KuaiN, PassWd,
-                                    MLastSelectedSnr);
+        mfrc522_reset();
+      	status = mfrc522_request(PICC_REQIDL, &RevBuffer[0]);
+      	if(status ! =MI_OK)
+      	{
+            		printk(KERN_DEBUG "mfrc522: no search card, no card found\n");
+            		return -EFAULT;
+      	}
+      	status = mfrc522_anticol(&RevBuffer[2]);
+      	if(status != MI_OK)
+      	{
+            		printk(KERN_DEBUG "mfrc522: get card nu, no number\n");
+            		return -EFAULT;
+      	}
+      	memcpy(MLastSelectedSnr, &RevBuffer[2], 4);
+
+      	status=PcdSelect(MLastSelectedSnr);
+      	if(status!=MI_OK)
+      	{
+            		printk(KERN_DEBUG "mfrc522: no card selected\n");
+            		return -EFAULT;
+      	}
+
+
         if (a == GET_ID)
         {
                 mfrc522_halt();
@@ -345,6 +423,8 @@ static char mfrc522_state(unchar a)
         }
         else
         {
+              status = mfrc522_auth_state(PICC_AUTHENT1A, KuaiN, PassWd,
+                                          MLastSelectedSnr);
           		if(status != MI_OK)
           		{
                       printk(KERN_DEBUG "mfrc522: error while reading card\n");
@@ -362,7 +442,7 @@ static char mfrc522_state(unchar a)
           			     memcpy(pdata, Read_Data, sizeof(Read_Data));
           			     printk(KERN_DEBUG"read block %d info:", KuaiN);
           			     for(i = 0; i < 16; i++)
-          				          printk(KERN_DEBUG"%2.2X",pdata[i]);
+          				          printk(KERN_DEBUG"%2.2X", pdata[i]);
           			     printk(KERN_DEBUG"\n");
           		}
       }
